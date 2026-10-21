@@ -25,26 +25,29 @@ jobs:
           arduino-cli config add board_manager.additional_urls \
             https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
           arduino-cli core update-index
-          # Pin core version to avoid symbol drift between pico-pio-usb versions
-          arduino-cli core install rp2040:rp2040@4.4.3
+          arduino-cli core install rp2040:rp2040
+          arduino-cli core list
 
-      - name: Install Adafruit TinyUSB library
+      - name: Install libraries
         run: |
-          # NOTE: do NOT install "Pico PIO USB" — Pico-PIO-USB is bundled inside
-          # the rp2040 core. Installing it separately causes symbol conflicts
-          # (pio_usb_tx_timeouts undefined) because Arduino picks the wrong version.
+          # Pico PIO USB 0.7.2 — must match the version bundled in the core
+          # so that pio_usb_tx_timeouts and other symbols resolve correctly.
+          arduino-cli lib install "Pico PIO USB@0.7.2"
           arduino-cli lib install "Adafruit TinyUSB Library"
+          arduino-cli lib list
 
       - name: Patch TinyUSB config (large descriptors + 4 HID interfaces)
         run: |
-          CFG=$(find ~/.arduino15 -name "tusb_config_rp2040.h" 2>/dev/null | head -1)
+          # The file lives inside the installed core package
+          CFG=$(find ~/.arduino15 /root/.arduino15 -name "tusb_config_rp2040.h" 2>/dev/null | head -1)
           if [ -n "$CFG" ]; then
             echo "Patching: $CFG"
             sed -i 's/\(#define[[:space:]]*CFG_TUH_ENUMERATION_BUFSIZE[[:space:]]*\)[0-9]*/\11024/' "$CFG"
             sed -i 's/\(#define[[:space:]]*CFG_TUD_HID[[:space:]]*\)[0-9]*/\14/'                  "$CFG"
             grep -E "CFG_TUH_ENUMERATION_BUFSIZE|CFG_TUD_HID" "$CFG"
           else
-            echo "tusb_config_rp2040.h not found — skipping patch"
+            echo "WARNING: tusb_config_rp2040.h not found — searching all locations:"
+            find / -name "tusb_config_rp2040.h" 2>/dev/null || true
           fi
 
       - name: Compile sketch
