@@ -20,6 +20,7 @@ static uint8_t kb_report[8];
 static bool    kb_dirty = false;
 
 /* ── Mouse accumulators (host core adds, device core drains) ──────────────── */
+volatile uint32_t g_tx_ok = 0;   /* mouse reports accepted for PC */
 static volatile int32_t acc_x = 0, acc_y = 0, acc_w = 0;
 static volatile uint8_t cur_btn = 0, last_btn = 0;
 
@@ -40,7 +41,7 @@ void hid_device_task(void)
         __atomic_fetch_sub(&acc_w, cw, __ATOMIC_SEQ_CST);
         last_btn = btn;
         uint8_t rpt[4] = { btn, (uint8_t)(int8_t)cx, (uint8_t)(int8_t)cy, (uint8_t)(int8_t)cw };
-        tud_hid_report(1, rpt, sizeof(rpt));
+        if (tud_hid_report(1, rpt, sizeof(rpt))) g_tx_ok++;
         return;
     }
 

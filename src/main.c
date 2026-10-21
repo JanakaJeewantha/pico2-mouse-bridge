@@ -27,6 +27,8 @@ volatile bool           g_mouse_dirty = false;
 
 extern volatile uint32_t g_host_mounted;
 extern volatile uint32_t g_host_reports;
+extern volatile uint32_t g_host_motion;
+extern volatile uint32_t g_tx_ok;
 
 /* ---- WS2812 on PIO2 (PIO-USB uses PIO0/PIO1) ---- */
 static const uint16_t ws_prog_instr[] = { 0x6221, 0x1123, 0x1400, 0xa442 };
@@ -80,25 +82,32 @@ static void core1_entry(void)
 
 static void led_task(void)
 {
-    static uint32_t t0 = 0, last_rep = 0, last_rep_t = 0; static int last_state = -1;
+    static uint32_t t0 = 0, last_rep = 0, last_rep_t = 0, last_mot = 0, last_mot_t = 0, last_tx = 0, last_tx_t = 0;
+    static int last_state = -1;
     uint32_t now = to_ms_since_boot(get_absolute_time());
     if (now - t0 < 50) return;
     t0 = now;
-    uint32_t r = g_host_reports;
+    uint32_t r = g_host_reports, m = g_host_motion, x = g_tx_ok;
     if (r != last_rep) { last_rep = r; last_rep_t = now; }
+    if (m != last_mot) { last_mot = m; last_mot_t = now; }
+    if (x != last_tx)  { last_tx = x;  last_tx_t = now; }
 
     int state;
     if (!tud_mounted())                         state = 0;
+    else if (x && now - last_tx_t < 300)        state = 5;
+    else if (m && now - last_mot_t < 300)       state = 4;
     else if (r && now - last_rep_t < 300)       state = 3;
     else if (g_host_mounted)                    state = 2;
     else                                        state = 1;
     if (state == last_state) return;
     last_state = state;
     switch (state) {
-        case 0: rgb_set(0, 0, 40);  break;   /* blue   */
-        case 1: rgb_set(40, 0, 0);  break;   /* red    */
-        case 2: rgb_set(40, 28, 0); break;   /* yellow */
-        default: rgb_set(0, 40, 0); break;   /* green  */
+        case 0: rgb_set(0, 0, 40);  break;   /* blue    */
+        case 1: rgb_set(40, 0, 0);  break;   /* red     */
+        case 2: rgb_set(40, 28, 0); break;   /* yellow  */
+        case 3: rgb_set(0, 40, 0);  break;   /* green   */
+        case 4: rgb_set(0, 30, 30); break;   /* cyan    */
+        default: rgb_set(40, 40, 40); break; /* white   */
     }
 }
 

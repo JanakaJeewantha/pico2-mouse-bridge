@@ -1,4 +1,4 @@
-﻿/*
+/*
  * usb_descriptors.c
  * =================
  * All USB descriptors for the RP2350A composite HID device.
@@ -46,9 +46,9 @@ static uint8_t const hid_report_descriptor[] =
     0x05, 0x01,        /* Usage Page: Generic Desktop */
     0x09, 0x02,        /* Usage: Mouse */
     0xA1, 0x01,        /* Collection: Application */
+      0x85, 0x01,      /*   Report ID 1 */
       0x09, 0x01,      /*   Usage: Pointer */
       0xA1, 0x00,      /*   Collection: Physical */
-        0x85, 0x01,    /*     Report ID 1 */
         /* Buttons 1-5 */
         0x05, 0x09, 0x19, 0x01, 0x29, 0x05,
         0x15, 0x00, 0x25, 0x01,

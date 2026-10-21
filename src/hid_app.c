@@ -10,6 +10,7 @@
 
 volatile uint32_t g_host_mounted = 0;   /* LED: any device mounted    */
 volatile uint32_t g_host_reports = 0;   /* LED: reports received      */
+volatile uint32_t g_host_motion  = 0;   /* LED: nonzero motion parsed */
 
 typedef struct {
     bool    valid;
@@ -139,6 +140,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance,
                 (proto == HID_ITF_PROTOCOL_MOUSE);
 
     if (boot) {
+        if (len >= 3 && (report[1] || report[2])) g_host_motion++;
         if (len >= 3)
             hid_device_send_mouse(report[0] & 0x1F, (int8_t)report[1], (int8_t)report[2],
                                   len >= 4 ? (int8_t)report[3] : 0);
@@ -154,6 +156,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance,
             int32_t x = get_bits(r, l, m->xOff, m->xSz, true);
             int32_t y = get_bits(r, l, m->yOff, m->ySz, true);
             int32_t w = (m->wOff >= 0) ? get_bits(r, l, m->wOff, m->wSz, true) : 0;
+            if (x || y || w) g_host_motion++;
             hid_device_send_mouse(btn, x, y, w);
         }
     }
