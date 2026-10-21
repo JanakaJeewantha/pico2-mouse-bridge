@@ -1,4 +1,4 @@
-﻿/*
+/*
  * hid_device.c  -  USB Device (PC-facing) side
  *
  * Composite HID on RHPORT 0, three top-level collections:
@@ -19,22 +19,29 @@
 static uint8_t kb_report[8];
 static bool    kb_dirty = false;
 
+/* ── Mouse accumulators (host core adds, device core drains) ──────────────── */
+static volatile int32_t acc_x = 0, acc_y = 0, acc_w = 0;
+static volatile uint8_t cur_btn = 0, last_btn = 0;
+
+static inline int32_t clamp127(int32_t v) { return v > 127 ? 127 : (v < -127 ? -127 : v); }
+
 /* ── Forward passthrough from host mouse ─────────────────────────────────── */
 void hid_device_task(void)
 {
     if (!tud_hid_ready()) return;
 
     /* 1. Forward physical mouse from host */
-    if (g_mouse_dirty) {
-        mouse_report_t snap;
-        uint32_t irq  = save_and_disable_interrupts();
-        snap          = g_mouse;
-        g_mouse_dirty = false;
-        restore_interrupts(irq);
-
-        uint8_t rpt[4] = { snap.buttons, (uint8_t)snap.x,
-                           (uint8_t)snap.y, (uint8_t)snap.wheel };
+    int32_t px = acc_x, py = acc_y, pw = acc_w;
+    uint8_t btn = cur_btn;
+    if (px || py || pw || btn != last_btn) {
+        int32_t cx = clamp127(px), cy = clamp127(py), cw = clamp127(pw);
+        __atomic_fetch_sub(&acc_x, cx, __ATOMIC_SEQ_CST);
+        __atomic_fetch_sub(&acc_y, cy, __ATOMIC_SEQ_CST);
+        __atomic_fetch_sub(&acc_w, cw, __ATOMIC_SEQ_CST);
+        last_btn = btn;
+        uint8_t rpt[4] = { btn, (uint8_t)(int8_t)cx, (uint8_t)(int8_t)cy, (uint8_t)(int8_t)cw };
         tud_hid_report(1, rpt, sizeof(rpt));
+        return;
     }
 
     /* 2. Send keyboard if changed */
@@ -44,27 +51,20 @@ void hid_device_task(void)
     }
 }
 
-/* Written by host task on core0 – g_mouse shared via volatile */
-void hid_device_send_mouse(uint8_t buttons, int8_t x, int8_t y, int8_t wheel)
+/* Called from the host core: accumulate motion, never overwrite */
+void hid_device_send_mouse(uint8_t buttons, int32_t x, int32_t y, int32_t wheel)
 {
-    g_mouse.buttons = buttons;
-    g_mouse.x       = x;
-    g_mouse.y       = y;
-    g_mouse.wheel   = wheel;
-    g_mouse_dirty   = true;
+    cur_btn = buttons;
+    __atomic_fetch_add(&acc_x, x, __ATOMIC_SEQ_CST);
+    __atomic_fetch_add(&acc_y, y, __ATOMIC_SEQ_CST);
+    __atomic_fetch_add(&acc_w, wheel, __ATOMIC_SEQ_CST);
 }
 
 /* PC app aim override packet (0xAA) */
 void hid_device_send_aim(int16_t dx, int16_t dy)
 {
-    if (!tud_hid_ready()) return;
-    while (dx != 0 || dy != 0) {
-        int8_t mx = (dx >  127) ?  127 : (dx < -128) ? -128 : (int8_t)dx;
-        int8_t my = (dy >  127) ?  127 : (dy < -128) ? -128 : (int8_t)dy;
-        uint8_t rpt[4] = { 0, (uint8_t)mx, (uint8_t)my, 0 };
-        tud_hid_report(1, rpt, sizeof(rpt));
-        dx -= mx; dy -= my;
-    }
+    __atomic_fetch_add(&acc_x, dx, __ATOMIC_SEQ_CST);
+    __atomic_fetch_add(&acc_y, dy, __ATOMIC_SEQ_CST);
 }
 
 /* Key press/release (0xAB) */
