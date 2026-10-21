@@ -1,6 +1,4 @@
 ﻿cmake_minimum_required(VERSION 3.17)
-
-# ── pico-sdk import (before project()) ───────────────────────────────────────
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
 project(pico2_mouse_bridge C CXX ASM)
@@ -9,35 +7,51 @@ set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
 
+# ── Pico-PIO-USB (host controller for second port) ───────────────────────────
+# Cloned separately in CI to /opt/pico-pio-usb
+# Set PICO_PIO_USB_PATH via cmake -D or env
+if(DEFINED ENV{PICO_PIO_USB_PATH} AND NOT PICO_PIO_USB_PATH)
+    set(PICO_PIO_USB_PATH $ENV{PICO_PIO_USB_PATH})
+endif()
+if(NOT PICO_PIO_USB_PATH)
+    set(PICO_PIO_USB_PATH "/opt/pico-pio-usb")
+endif()
+message(STATUS "Pico-PIO-USB path: ${PICO_PIO_USB_PATH}")
+
 add_executable(pico2_mouse_bridge
     src/main.c
     src/hid_device.c
     src/hid_app.c
     src/vk_to_hid.c
     src/usb_descriptors.c
+    # Pico-PIO-USB host controller sources
+    ${PICO_PIO_USB_PATH}/src/pio_usb.c
+    ${PICO_PIO_USB_PATH}/src/pio_usb_host.c
+    ${PICO_PIO_USB_PATH}/src/usb_crc.c
 )
+
+# Generate PIO headers from .pio assembly files
+pico_generate_pio_header(pico2_mouse_bridge ${PICO_PIO_USB_PATH}/src/pio_usb_tx.pio)
+pico_generate_pio_header(pico2_mouse_bridge ${PICO_PIO_USB_PATH}/src/pio_usb_rx.pio)
 
 target_include_directories(pico2_mouse_bridge PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/tusb_config
+    ${PICO_PIO_USB_PATH}/src
 )
 
-# RP2350A has two native USB PHYs:
-#   USB0 (native) -> tinyusb_device  (PC-facing, bInterval=1, 1000 Hz)
-#   USB1 (native) -> tinyusb_host    (mouse-facing, reads G502)
-# No PIO bit-bang needed. pico_pio_usb is NOT required.
 target_link_libraries(pico2_mouse_bridge
     pico_stdlib
     pico_multicore
     pico_unique_id
+    hardware_pio
+    hardware_dma
+    hardware_irq
     tinyusb_device
     tinyusb_host
     tinyusb_board
 )
 
-# UF2 for drag-and-drop flashing
 pico_add_extra_outputs(pico2_mouse_bridge)
-
-# No USB CDC/serial stdio – stealth mode
 pico_enable_stdio_usb(pico2_mouse_bridge  0)
 pico_enable_stdio_uart(pico2_mouse_bridge 0)

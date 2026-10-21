@@ -12,6 +12,7 @@ jobs:
 
     env:
       PICO_SDK_VERSION: "2.1.0"
+      PIO_USB_VERSION:  "0.6.0"
 
     steps:
       - name: Checkout
@@ -34,14 +35,21 @@ jobs:
           cd /opt/pico-sdk
           git submodule update --init --depth=1 lib/tinyusb
 
+      - name: Clone Pico-PIO-USB ${{ env.PIO_USB_VERSION }}
+        run: |
+          git clone --depth=1 --branch ${{ env.PIO_USB_VERSION }} \
+            https://github.com/sekigon-gonnoc/Pico-PIO-USB.git /opt/pico-pio-usb
+
       - name: Configure
         env:
-          PICO_SDK_PATH: /opt/pico-sdk
+          PICO_SDK_PATH:     /opt/pico-sdk
+          PICO_PIO_USB_PATH: /opt/pico-pio-usb
         run: |
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DPICO_PLATFORM=rp2350 \
             -DPICO_BOARD=pico2 \
+            -DPICO_PIO_USB_PATH=/opt/pico-pio-usb \
             -G Ninja
 
       - name: Build
