@@ -1,4 +1,4 @@
-﻿/*
+/*
  * tusb_config.h
  * =============
  * DO NOT define CFG_TUSB_MCU here - pico-sdk sets it via compiler -D flag.
@@ -33,6 +33,7 @@ extern "C" {
 /* ── Host (pio-usb, RHPORT 1, GP2=D+/GP3=D-) ───────────────────────────── */
 #define CFG_TUH_ENABLED             1
 #define CFG_TUH_RHPORT              1
+#define BOARD_TUH_RHPORT            1       /* required by tinyusb family.c   */
 #define CFG_TUH_RPI_PIO_USB         1       /* use Pico-PIO-USB as HCD        */
 #define PICO_PIO_USB_PIN_DP         2       /* D+ on GP2, D- auto = GP3       */
 
