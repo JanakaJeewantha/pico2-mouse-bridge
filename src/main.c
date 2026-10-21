@@ -66,14 +66,17 @@ static void led_task(void)
 
 int main(void)
 {
-    set_sys_clock_khz(240000, true);     /* PIO-USB needs 120/240 MHz */
-
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
     for (int i = 0; i < 3; i++) {
         gpio_put(PICO_DEFAULT_LED_PIN, 1); sleep_ms(80);
         gpio_put(PICO_DEFAULT_LED_PIN, 0); sleep_ms(80);
     }
+
+    /* PIO-USB needs 120/240 MHz. 120 is safe at default core voltage. */
+    set_sys_clock_khz(120000, true);
+    gpio_put(PICO_DEFAULT_LED_PIN, 1); sleep_ms(300);   /* 4th long blink = clock OK */
+    gpio_put(PICO_DEFAULT_LED_PIN, 0);
 
     tud_init(0);                         /* device on native USB */
     multicore_launch_core1(core1_entry);
