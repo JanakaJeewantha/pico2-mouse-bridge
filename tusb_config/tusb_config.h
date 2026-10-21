@@ -1,4 +1,4 @@
-﻿/*
+/*
  * tusb_config.h
  * =============
  * RP2350A has ONE native USB PHY.
@@ -15,7 +15,7 @@ extern "C" {
 #define CFG_TUSB_DEBUG          0
 #define CFG_TUSB_MEM_ALIGN      TU_ATTR_ALIGNED(4)
 
-/* ── Device (native USB, RHPORT 0) ──────────────────────────────────────── */
+/* -- Device (native USB, RHPORT 0) ---------------------------------------- */
 #define CFG_TUD_ENABLED         1
 #define CFG_TUD_RHPORT          0
 #define CFG_TUD_ENDPOINT0_SIZE  64
@@ -28,10 +28,11 @@ extern "C" {
 #define CFG_TUD_MIDI            0
 #define CFG_TUD_VENDOR          0
 
-/* ── Host (pio-usb, RHPORT 1, GP2/GP3) ─────────────────────────────────── */
+/* -- Host (pio-usb, RHPORT 1, GP2/GP3) ----------------------------------- */
 #define CFG_TUH_ENABLED         1
 #define CFG_TUH_RHPORT          1
 #define CFG_TUH_RPI_PIO_USB     1       /* use Pico-PIO-USB as host controller */
+#define PICO_PIO_USB_PIN_DP     2   /* D+ on GP2, D- auto GP3 */
 
 #define CFG_TUH_HUB             1
 #define CFG_TUH_HID             4
