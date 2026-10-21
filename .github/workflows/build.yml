@@ -15,7 +15,6 @@ jobs:
 
       - name: Install arduino-cli
         run: |
-          # Install directly to /usr/local/bin so it's on PATH for all steps
           curl -fsSL https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Linux_64bit.tar.gz \
             | sudo tar -xz -C /usr/local/bin
           arduino-cli version
@@ -26,12 +25,15 @@ jobs:
           arduino-cli config add board_manager.additional_urls \
             https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
           arduino-cli core update-index
-          arduino-cli core install rp2040:rp2040
+          # Pin core version to avoid symbol drift between pico-pio-usb versions
+          arduino-cli core install rp2040:rp2040@4.4.3
 
-      - name: Install libraries
+      - name: Install Adafruit TinyUSB library
         run: |
+          # NOTE: do NOT install "Pico PIO USB" — Pico-PIO-USB is bundled inside
+          # the rp2040 core. Installing it separately causes symbol conflicts
+          # (pio_usb_tx_timeouts undefined) because Arduino picks the wrong version.
           arduino-cli lib install "Adafruit TinyUSB Library"
-          arduino-cli lib install "Pico PIO USB"
 
       - name: Patch TinyUSB config (large descriptors + 4 HID interfaces)
         run: |
