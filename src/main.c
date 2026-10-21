@@ -1,44 +1,31 @@
-/*
- * PixelAssist Pico2 Mouse Bridge - main.c
- * =========================================
- * Target : RP2350A (Pico 2 / Waveshare RP2350A)
- * SDK    : pico-sdk >= 2.0
- * USB lib: TinyUSB (bundled with pico-sdk)
+﻿/*
+ * main.c  -  PixelAssist Pico2 Mouse Bridge
+ * ==========================================
+ * RP2350A has TWO native USB PHYs:
+ *   USB0 (RHPORT 0) = Device -> PC   (HID composite, 1000 Hz, Report IDs 1/2/3)
+ *   USB1 (RHPORT 1) = Host   -> G502 (reads mouse, forwards as Report ID 1)
  *
- * Device side (USB port -> PC):
- *   Composite HID: THREE top-level collections
- *   Endpoint bInterval = 1  -> 1000 Hz full-speed
- *   Report ID 1  (IN,  4 B) - Mouse    (buttons + X + Y + wheel)
- *   Report ID 3  (IN,  8 B) - Keyboard (modifier + reserved + 6 keycodes)
- *   Report ID 2  (OUT, 7 B) - Vendor cmd channel (aim / key-inject / update)
- *
- * Host side (second USB port <- physical G502 or any USB HID mouse):
- *   TinyUSB host reads mouse reports and re-emits them on device Report ID 1.
- *   The board is transparent - the PC sees ONE mouse (its own PID/VID).
- *
- * Command packets (Report ID 2, received from PC app):
- *   [0]=0xAA  Aim override   [1..2]=DX s16LE [3..4]=DY s16LE
- *                            [5]=flags(0x01=tracking) [6]=XOR chk
- *   [0]=0xAB  Key inject     [1]=VK  [2]=down  [6]=VK^down
- *   [0]=0xFF  Reboot to BOOTSEL
+ * Core 1 runs the USB device task.
+ * Core 0 runs the USB host task.
  */
 
-#include <stdint.h>
-#include <string.h>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 #include "hid_app.h"
 #include "hid_device.h"
 
-/* shared state written by host task, read by device task */
-volatile mouse_report_t g_mouse       = {0};
-volatile bool           g_mouse_dirty = false;
-
-/* Core 1: USB device engine */
+/* Core 1: USB device engine (PC-facing) */
 static void core1_entry(void)
 {
+    /* Init device port (RHPORT 0) on core1 */
+    tusb_rhport_init_t dev_init = {
+        .role  = TUSB_ROLE_DEVICE,
+        .speed = TUSB_SPEED_AUTO,
+    };
+    tusb_init(CFG_TUD_RHPORT, &dev_init);
+
     while (true) {
         tud_task();
         hid_device_task();
@@ -48,10 +35,17 @@ static void core1_entry(void)
 int main(void)
 {
     board_init();
-    tusb_init();
+
+    /* Init host port (RHPORT 1) on core0 */
+    tusb_rhport_init_t host_init = {
+        .role  = TUSB_ROLE_HOST,
+        .speed = TUSB_SPEED_AUTO,
+    };
+    tusb_init(CFG_TUH_RHPORT, &host_init);
+
     multicore_launch_core1(core1_entry);
 
-    /* Core 0: USB host engine */
+    /* Core 0: USB host engine (mouse-facing) */
     while (true) {
         tuh_task();
         hid_app_task();
