@@ -1,64 +1,64 @@
-name: Build Pico2 Mouse Bridge Firmware
+name: Build PixelAssist RP2350A Firmware
 
 on:
   push:
     branches: [ main, master ]
-  pull_request:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
-
-    env:
-      PICO_SDK_VERSION: "2.1.0"
-      PIO_USB_VERSION:  "0.7.2"
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install toolchain
+      - name: Install arduino-cli
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build \
-            gcc-arm-none-eabi \
-            libnewlib-arm-none-eabi \
-            libstdc++-arm-none-eabi-newlib \
-            python3 git
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+          echo "$HOME/bin" >> $GITHUB_PATH
 
-      - name: Clone pico-sdk ${{ env.PICO_SDK_VERSION }}
+      - name: Add RP2040/RP2350 board package
         run: |
-          git clone --depth=1 --branch ${{ env.PICO_SDK_VERSION }} \
-            https://github.com/raspberrypi/pico-sdk.git /opt/pico-sdk
-          cd /opt/pico-sdk
-          git submodule update --init --depth=1 lib/tinyusb
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls \
+            https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
+          arduino-cli core update-index
+          arduino-cli core install rp2040:rp2040
 
-      - name: Clone Pico-PIO-USB ${{ env.PIO_USB_VERSION }}
+      - name: Install libraries
         run: |
-          git clone --depth=1 --branch ${{ env.PIO_USB_VERSION }} \
-            https://github.com/sekigon-gonnoc/Pico-PIO-USB.git /opt/pico-pio-usb
+          arduino-cli lib install "Adafruit TinyUSB Library"
+          arduino-cli lib install "Pico PIO USB"
 
-      - name: Configure
-        env:
-          PICO_SDK_PATH:     /opt/pico-sdk
-          PICO_PIO_USB_PATH: /opt/pico-pio-usb
+      - name: Patch TinyUSB host buffer (large descriptors + 3 HID interfaces)
         run: |
-          cmake -S . -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DPICO_PLATFORM=rp2350 \
-            -DPICO_BOARD=pico2 \
-            -DPICO_PIO_USB_PATH=/opt/pico-pio-usb \
-            -G Ninja
+          CFG=$(find ~/.arduino15 -name "tusb_config_rp2040.h" 2>/dev/null | head -1)
+          if [ -n "$CFG" ]; then
+            echo "Patching $CFG"
+            sed -i 's/\(#define\s*CFG_TUH_ENUMERATION_BUFSIZE\s*\)[0-9]*/\11024/' "$CFG"
+            sed -i 's/\(#define\s*CFG_TUD_HID\s*\)[0-9]*/\14/'                  "$CFG"
+          fi
 
-      - name: Build
-        run: cmake --build build --parallel
+      - name: Compile sketch
+        run: |
+          arduino-cli compile \
+            --fqbn "rp2040:rp2040:rpipico2:freq=240,usbstack=tinyusb" \
+            --build-property "compiler.cpp.extra_flags=-DCFG_TUD_HID=4" \
+            --output-dir build \
+            sketch/PixelAssist_RP2350A
 
-      - name: Upload UF2
+      - name: Locate UF2
+        id: uf2
+        run: |
+          F=$(find build -name "*.uf2" ! -name "*bootloader*" | head -1)
+          echo "path=$F" >> $GITHUB_OUTPUT
+          echo "Found: $F ($(stat -c%s "$F") bytes)"
+
+      - name: Upload UF2 artifact
         uses: actions/upload-artifact@v4
         with:
           name: pico2_mouse_bridge_uf2
-          path: build/pico2_mouse_bridge.uf2
+          path: ${{ steps.uf2.outputs.path }}
           if-no-files-found: error
           retention-days: 90
