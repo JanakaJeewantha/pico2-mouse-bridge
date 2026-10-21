@@ -35,7 +35,7 @@ extern "C" {
 #define CFG_TUH_RHPORT              1
 #define BOARD_TUH_RHPORT            1       /* required by tinyusb family.c   */
 #define CFG_TUH_RPI_PIO_USB         1       /* use Pico-PIO-USB as HCD        */
-#define PICO_PIO_USB_PIN_DP         2       /* D+ on GP2, D- auto = GP3       */
+#define PICO_PIO_USB_PIN_DP         12      /* D+ on GP12, D- auto = GP13 (Waveshare RP2350A) */
 
 #define CFG_TUH_HUB                 1
 #define CFG_TUH_HID                 4
