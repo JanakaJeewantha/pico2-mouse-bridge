@@ -22,6 +22,7 @@ typedef struct {
 
 #define MAXD 8
 static mouse_map_t maps[MAXD][MAXD];
+static bool boot_mouse[MAXD][MAXD];
 
 static void map_clear(mouse_map_t *m)
 {
@@ -113,19 +114,20 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance,
     bool ok = false;
     if (m) { map_clear(m); if (desc_report && desc_len) ok = parse_mouse(desc_report, desc_len, m); }
 
-    if (ok) {
+    if (proto == HID_ITF_PROTOCOL_MOUSE) {
+        /* Standard boot mouse: fixed layout [btn][x][y][wheel], no parsing needed */
+        if (dev_addr < MAXD && instance < MAXD) boot_mouse[dev_addr][instance] = true;
+        tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_BOOT);
+    } else if (ok) {
         if (tuh_hid_get_protocol(dev_addr, instance) != HID_PROTOCOL_REPORT)
             tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
-    } else if (proto == HID_ITF_PROTOCOL_MOUSE) {
-        if (tuh_hid_get_protocol(dev_addr, instance) != HID_PROTOCOL_BOOT)
-            tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_BOOT);
     }
     tuh_hid_receive_report(dev_addr, instance);
 }
 
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
-    if (dev_addr < MAXD && instance < MAXD) map_clear(&maps[dev_addr][instance]);
+    if (dev_addr < MAXD && instance < MAXD) { map_clear(&maps[dev_addr][instance]); boot_mouse[dev_addr][instance] = false; }
     g_host_mounted = 0;
     hid_device_send_mouse(0, 0, 0, 0);
 }
@@ -133,11 +135,10 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance,
                                 uint8_t const *report, uint16_t len)
 {
+    if (len == 0) { tuh_hid_receive_report(dev_addr, instance); return; }
     g_host_reports++;
     mouse_map_t *m = (dev_addr < MAXD && instance < MAXD) ? &maps[dev_addr][instance] : NULL;
-    uint8_t proto = tuh_hid_interface_protocol(dev_addr, instance);
-    bool boot = (tuh_hid_get_protocol(dev_addr, instance) == HID_PROTOCOL_BOOT) &&
-                (proto == HID_ITF_PROTOCOL_MOUSE);
+    bool boot = (dev_addr < MAXD && instance < MAXD) && boot_mouse[dev_addr][instance];
 
     if (boot) {
         if (len >= 3 && (report[1] || report[2])) g_host_motion++;
