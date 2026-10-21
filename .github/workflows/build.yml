@@ -15,10 +15,12 @@ jobs:
 
       - name: Install arduino-cli
         run: |
-          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
-          echo "$HOME/bin" >> $GITHUB_PATH
+          # Install directly to /usr/local/bin so it's on PATH for all steps
+          curl -fsSL https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Linux_64bit.tar.gz \
+            | sudo tar -xz -C /usr/local/bin
+          arduino-cli version
 
-      - name: Add RP2040/RP2350 board package
+      - name: Add RP2040/RP2350 board package and install core
         run: |
           arduino-cli config init
           arduino-cli config add board_manager.additional_urls \
@@ -31,13 +33,16 @@ jobs:
           arduino-cli lib install "Adafruit TinyUSB Library"
           arduino-cli lib install "Pico PIO USB"
 
-      - name: Patch TinyUSB host buffer (large descriptors + 3 HID interfaces)
+      - name: Patch TinyUSB config (large descriptors + 4 HID interfaces)
         run: |
           CFG=$(find ~/.arduino15 -name "tusb_config_rp2040.h" 2>/dev/null | head -1)
           if [ -n "$CFG" ]; then
-            echo "Patching $CFG"
-            sed -i 's/\(#define\s*CFG_TUH_ENUMERATION_BUFSIZE\s*\)[0-9]*/\11024/' "$CFG"
-            sed -i 's/\(#define\s*CFG_TUD_HID\s*\)[0-9]*/\14/'                  "$CFG"
+            echo "Patching: $CFG"
+            sed -i 's/\(#define[[:space:]]*CFG_TUH_ENUMERATION_BUFSIZE[[:space:]]*\)[0-9]*/\11024/' "$CFG"
+            sed -i 's/\(#define[[:space:]]*CFG_TUD_HID[[:space:]]*\)[0-9]*/\14/'                  "$CFG"
+            grep -E "CFG_TUH_ENUMERATION_BUFSIZE|CFG_TUD_HID" "$CFG"
+          else
+            echo "tusb_config_rp2040.h not found — skipping patch"
           fi
 
       - name: Compile sketch
@@ -52,8 +57,8 @@ jobs:
         id: uf2
         run: |
           F=$(find build -name "*.uf2" ! -name "*bootloader*" | head -1)
-          echo "path=$F" >> $GITHUB_OUTPUT
-          echo "Found: $F ($(stat -c%s "$F") bytes)"
+          echo "path=$F" >> "$GITHUB_OUTPUT"
+          echo "Found: $F  ($(stat -c%s "$F") bytes)"
 
       - name: Upload UF2 artifact
         uses: actions/upload-artifact@v4
