@@ -18,6 +18,7 @@
 #include "pio_usb.h"
 #include "hid_app.h"
 #include "hid_device.h"
+#include "dbg.h"
 
 #define PIN_USB_HOST_DP 12
 #define PIN_RGB_LED     16
@@ -127,5 +128,14 @@ int main(void)
         tud_task();
         hid_device_task();
         led_task();
+        dbg_task();
+        static uint32_t ts = 0;
+        uint32_t nw = to_ms_since_boot(get_absolute_time());
+        if (nw - ts >= 1000) {
+            ts = nw;
+            dbg_printf("STAT mounted=%lu reports=%lu motion=%lu txok=%lu pcmounted=%d\r\n",
+                       (unsigned long)g_host_mounted, (unsigned long)g_host_reports,
+                       (unsigned long)g_host_motion, (unsigned long)g_tx_ok, tud_mounted());
+        }
     }
 }

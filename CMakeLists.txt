@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.17)
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
 project(pico2_mouse_bridge C CXX ASM)
@@ -21,6 +21,7 @@ add_executable(pico2_mouse_bridge
     src/hid_device.c
     src/hid_app.c
     src/vk_to_hid.c
+    src/dbg.c
     src/usb_descriptors.c
     # Pico-PIO-USB host controller (provides hcd_* symbols)
     ${PICO_PIO_USB_PATH}/src/pio_usb.c

@@ -21,9 +21,9 @@ tusb_desc_device_t const desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = 0x0200,
-    .bDeviceClass       = 0,
-    .bDeviceSubClass    = 0,
-    .bDeviceProtocol    = 0,
+    .bDeviceClass       = TUSB_CLASS_MISC,
+    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
     .idVendor           = 0x046D,
     .idProduct          = 0xC08B,
@@ -102,15 +102,15 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t itf)
 #define EP_HID_OUT  0x01
 #define EP_SIZE     16
 #define REPORT_DESC_LEN  ((uint16_t)sizeof(hid_report_descriptor))
-#define CONFIG_TOTAL_LEN 41
+#define CONFIG_TOTAL_LEN (41 + TUD_CDC_DESC_LEN)
 
 static uint8_t const config_descriptor[CONFIG_TOTAL_LEN] =
 {
     /* Configuration descriptor */
     9,                          /* bLength */
     TUSB_DESC_CONFIGURATION,    /* bDescriptorType */
-    CONFIG_TOTAL_LEN, 0x00,     /* wTotalLength LE */
-    1,                          /* bNumInterfaces */
+    CONFIG_TOTAL_LEN & 0xFF, CONFIG_TOTAL_LEN >> 8,     /* wTotalLength LE */
+    3,                          /* bNumInterfaces */
     1,                          /* bConfigurationValue */
     0,                          /* iConfiguration */
     0x80,                       /* bmAttributes: bus-powered */
@@ -152,6 +152,9 @@ static uint8_t const config_descriptor[CONFIG_TOTAL_LEN] =
     TUSB_XFER_INTERRUPT,        /* bmAttributes */
     EP_SIZE, 0x00,              /* wMaxPacketSize LE */
     1,                          /* bInterval = 1ms */
+
+    /* CDC serial (debug) */
+    TUD_CDC_DESCRIPTOR(1, 0, 0x82, 8, 0x03, 0x83, 64)
 };
 
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index)

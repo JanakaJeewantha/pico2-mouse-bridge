@@ -7,6 +7,7 @@
 #include "hid_device.h"
 #include "tusb.h"
 #include <string.h>
+#include "dbg.h"
 
 volatile uint32_t g_host_mounted = 0;   /* LED: any device mounted    */
 volatile uint32_t g_host_reports = 0;   /* LED: reports received      */
@@ -114,6 +115,16 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance,
     bool ok = false;
     if (m) { map_clear(m); if (desc_report && desc_len) ok = parse_mouse(desc_report, desc_len, m); }
 
+    {
+        uint16_t vid = 0, pid = 0; tuh_vid_pid_get(dev_addr, &vid, &pid);
+        dbg_printf("MOUNT dev=%u inst=%u vid:pid=%04X:%04X proto=%u descLen=%u parsed=%d id=%u x=%d/%u y=%d/%u\r\n",
+                   dev_addr, instance, vid, pid, proto, desc_len, ok,
+                   m ? m->id : 0, m ? m->xOff : -9, m ? m->xSz : 0, m ? m->yOff : -9, m ? m->ySz : 0);
+        dbg_printf("DESC:");
+        for (uint16_t i = 0; i < desc_len && i < 96; i++) dbg_printf(" %02X", desc_report[i]);
+        dbg_printf("\r\n");
+    }
+
     if (proto == HID_ITF_PROTOCOL_MOUSE) {
         /* Standard boot mouse: fixed layout [btn][x][y][wheel], no parsing needed */
         if (dev_addr < MAXD && instance < MAXD) boot_mouse[dev_addr][instance] = true;
@@ -137,6 +148,11 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance,
 {
     if (len == 0) { tuh_hid_receive_report(dev_addr, instance); return; }
     g_host_reports++;
+    if (g_host_reports <= 60 || (g_host_reports % 200) == 0) {
+        dbg_printf("RPT #%lu dev=%u inst=%u len=%u:", (unsigned long)g_host_reports, dev_addr, instance, len);
+        for (uint16_t i = 0; i < len && i < 16; i++) dbg_printf(" %02X", report[i]);
+        dbg_printf("\r\n");
+    }
     mouse_map_t *m = (dev_addr < MAXD && instance < MAXD) ? &maps[dev_addr][instance] : NULL;
     bool boot = (dev_addr < MAXD && instance < MAXD) && boot_mouse[dev_addr][instance];
 
