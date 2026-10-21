@@ -36,6 +36,12 @@ target_include_directories(pico2_mouse_bridge PRIVATE
     ${PICO_PIO_USB_PATH}/src
 )
 
+# Force GP12 as D+ at compile time so PIO_USB_DEFAULT_CONFIG is correct
+# even if tuh_configure doesn't take effect on RP2350
+target_compile_definitions(pico2_mouse_bridge PRIVATE
+    PICO_PIO_USB_PIN_DP=12
+)
+
 target_link_libraries(pico2_mouse_bridge
     pico_stdlib
     pico_multicore
